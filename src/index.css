@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+@theme {
+  --color-accent: #7c3aed;
+  --color-accent-glow: rgba(124, 58, 237, 0.4);
+  --color-card-bg: #0f172a;
+  --color-glass: rgba(255, 255, 255, 0.03);
+  --color-border-ui: rgba(255, 255, 255, 0.1);
+  --color-bg-deep: #05070a;
+  --color-text-ui: #e0e6ed;
+}
+
+@layer base {
+  body {
+    @apply bg-bg-deep text-text-ui antialiased;
+    background: radial-gradient(circle at 50% -20%, #1e1b4b 0%, #05070a 60%);
+    min-height: 100vh;
+  }
+}
+
+.glass-panel {
+  @apply bg-white/3 backdrop-blur-md border border-white/10;
+}
+
+.accent-glow {
+  box-shadow: 0 0 20px var(--color-accent-glow);
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  @apply bg-white/10 rounded-full hover:bg-accent transition-colors;
+}

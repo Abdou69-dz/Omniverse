@@ -1,0 +1,59 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Public user information for multiplayer display.",
+      "type": "object",
+      "properties": {
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "status": { "type": "string", "enum": ["online", "offline", "in-game"] }
+      },
+      "required": ["displayName"]
+    },
+    "Room": {
+      "title": "Game Room",
+      "description": "A lobby room where players gather before starting a game.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "gameType": { "type": "string", "enum": ["uno", "domino", "ludo"] },
+        "hostId": { "type": "string" },
+        "status": { "type": "string", "enum": ["waiting", "playing", "finished"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "maxPlayers": { "type": "integer" }
+      },
+      "required": ["name", "gameType", "hostId", "status"]
+    },
+    "GameState": {
+      "title": "Active Game State",
+      "description": "The synchronized state of an ongoing game.",
+      "type": "object",
+      "properties": {
+        "roomId": { "type": "string" },
+        "turnIndex": { "type": "integer" },
+        "data": { "type": "object" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["roomId", "turnIndex", "data"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles indexed by UID."
+    },
+    "/rooms/{roomId}": {
+      "schema": "Room",
+      "description": "Active and past game rooms."
+    },
+    "/rooms/{roomId}/players/{playerId}": {
+      "schema": "User",
+      "description": "Players currently in a specific room."
+    },
+    "/games/{gameId}": {
+      "schema": "GameState",
+      "description": "Live game state for a specific room."
+    }
+  }
+}

@@ -1,0 +1,92 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 3. Global Helpers
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
+
+    // Users
+    match /users/{userId} {
+      function isValidUser(data) {
+        return data.displayName is string && data.displayName.size() <= 64 &&
+               (data.get('photoURL', null) == null || (data.photoURL is string && data.photoURL.size() <= 512)) &&
+               (data.get('status', 'online') in ['online', 'offline', 'in-game']);
+      }
+      allow get: if isSignedIn();
+      allow create, update: if isOwner(userId) && isValidUser(incoming());
+    }
+
+    // Rooms
+    match /rooms/{roomId} {
+      function isValidRoom(data) {
+        return data.name is string && data.name.size() <= 64 &&
+               data.gameType in ['uno', 'domino', 'ludo'] &&
+               data.hostId is string &&
+               data.status in ['waiting', 'playing', 'finished'] &&
+               data.maxPlayers is int && data.maxPlayers >= 2 && data.maxPlayers <= 8;
+      }
+      allow list, get: if isSignedIn();
+      allow create: if isVerified() && isValidRoom(incoming()) && incoming().hostId == request.auth.uid;
+      allow update: if isSignedIn() && (
+        // Host Action: Start Game or Close Room
+        (isOwner(existing().hostId) && isValidRoom(incoming()) && incoming().hostId == existing().hostId &&
+         incoming().diff(existing()).affectedKeys().hasOnly(['status'])) ||
+        // Player Join/Leave logic is often handled in subcollection or by server, 
+        // but here players might update their presence in a different way or room capacity.
+        // For simplicity, let's allow room updates if it's a valid change to player count if we had that field.
+        false
+      );
+    }
+
+    // Players inside rooms
+    match /rooms/{roomId}/players/{playerId} {
+      allow read: if isSignedIn();
+      allow write: if isOwner(playerId) && isValidId(roomId);
+    }
+
+    // Game States
+    match /games/{gameId} {
+      function isValidGame(data) {
+        return data.roomId is string && 
+               data.turnIndex is int && 
+               data.playerOrder is list &&
+               data.hands is map &&
+               data.deck is list &&
+               data.discardPile is list;
+      }
+      
+      function isPlayerInRoom(roomId) {
+        return exists(/databases/$(database)/documents/rooms/$(roomId)/players/$(request.auth.uid));
+      }
+
+      // Allow read if the user is in the room associated with the game
+      // We use get() on the game document to find the roomId if it exists
+      allow read: if isSignedIn() && (
+        // If document doesn't exist, allow reading (will return empty/null)
+        !exists(/databases/$(database)/documents/games/$(gameId)) ||
+        isPlayerInRoom(get(/databases/$(database)/documents/games/$(gameId)).data.roomId)
+      );
+
+      allow create: if isVerified() && isValidGame(incoming()) && 
+                    request.auth.uid == get(/databases/$(database)/documents/rooms/$(incoming().roomId)).data.hostId;
+      
+      allow update: if isSignedIn() && 
+                    isPlayerInRoom(existing().roomId) && (
+                      // Either host updating game status/initialization
+                      (request.auth.uid == get(/databases/$(database)/documents/rooms/$(existing().roomId)).data.hostId) ||
+                      // Or any player updating their part of the state during their turn
+                      // For simplified demo, allow updates if isPlayerInRoom
+                      true 
+                    );
+    }
+  }
+}
